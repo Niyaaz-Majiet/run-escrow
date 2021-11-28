@@ -25,13 +25,13 @@ app.use(bodyParser.json());
 
 const port = 3000;
 
-app.get('/getJigState', (req, res) => {
+app.get('/getJigState', async (req, res) => {
     const { origin } = req.query;
     const getJig = async () =>{
       try {
         const transferJig = await run.load(origin);
         await transferJig.sync();
-        console.log(transferJig);
+        console.log(transferJig.creatorAddress);
         return {
             creatorAddress:transferJig.creatorAddress,
             creatorAmount:transferJig.creatorAmount,
@@ -52,16 +52,17 @@ app.get('/getJigState', (req, res) => {
             satoshis:transferJig.satoshis 
         };
       } catch (error) {
+        console.log(error)
       return null
       }
     };
-  
-    const jigData = getJig();
-  
+    
+    const jigData = await getJig();
     res.json({jigData});
   });
 
-app.post('/createNewJig', (req, res) => {
+app.post('/createNewJig', async (req, res) => {
+  console.log('creating jigr')
   const {owner,creatorEscrowAddress,receiverEscrowAddress,creatorBlockchain,receiverBlockchain,creatorAmount,receiverAmount,receiverAddress,creatorAddress} = req.body;
   const createTransferStateJig = async () =>{
     try {
@@ -70,28 +71,32 @@ app.post('/createNewJig', (req, res) => {
     await jig.sync();
 
     console.log("origin",jig.origin);
-
+    console.log(jig)
     return jig.origin;
     } catch (error) {
+      console.log(error)
     return null;
     }
   };
 
-  const origin = createTransferStateJig();
+  const origin = await createTransferStateJig();
 
   res.json({origin});
 });
 
-app.post('/updateReceiverTxId', (req, res) => {
+app.post('/updateReceiverTxId', async (req, res) => {
     const { receiverTxId, origin } = req.body;
   
     const updateReceiverTxId = async () =>{
       try {
         const transferJig = await run.load(origin);
         await transferJig.sync();
-        transferJig.updateReceiverTxId(receiverTxId);
-        await transferJig.sync();
+        const tx = new Run.Transaction()
 
+        await tx.update(() => {
+          transferJig.updateReceiverTxId(receiverTxId);
+        })
+        
         console.log(transferJig.receiverTxId);
 
         return {updated : true}
@@ -101,7 +106,7 @@ app.post('/updateReceiverTxId', (req, res) => {
       }
     }
   
-    const updated = updateReceiverTxId();
+    const updated = await updateReceiverTxId();
     res.json({updated});
 });
 
@@ -156,7 +161,7 @@ app.listen(port, () => console.log(`Listening on port ${port}!`))
 
 
 class TransferState extends Jig {
-    init(owner,creatorEscrowAddress,receiverEscrowAddress,creatorBlockchain,receiverBlockchain,creatorAmount,receiverAmount,receiverAddress,creatorAddress){
+    init(owner, creatorEscrowAddress,receiverEscrowAddress,creatorBlockchain,receiverBlockchain,creatorAmount,receiverAmount,receiverAddress,creatorAddress){
         this.owner = owner;
         this.creatorBlockchain = creatorBlockchain;
         this.creatorEscrowAddress = creatorEscrowAddress;
@@ -200,3 +205,4 @@ class TransferState extends Jig {
       this._updateJigState();
     }
 }
+
